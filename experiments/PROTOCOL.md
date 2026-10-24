@@ -51,3 +51,37 @@ Commit at start of record: aca6de8de6fdc1d0e48ccda75d97029c8315f0c8
 - Latency is consumer-side only. No end-to-end or throughput measurement.
 - Single host, Windows with Docker under WSL2.
 - Only RabbitMQ and an in-memory store were tested. No database, no Kafka.
+## Host and environment (recorded 2026-10-24)
+- Windows 11 Home, build 26200. PowerShell 5.1.26100.9711.
+- Host CPU: Intel Core i5-1235U, 10 cores, 12 logical processors. RAM 15.7 GB.
+- Docker Desktop engine 29.8.2 (client and server). Docker VM limits: 12 CPUs, about 7.6 GiB memory.
+- WSL 2, default distribution Ubuntu.
+- Host Java: Temurin 21.0.12.1 (not used by the containers). Python 3.12.10. Git 2.36.1.
+- Base image digests (match the build log prefixes):
+  - eclipse-temurin@sha256:227118764cccd3c3294617061aaa93a08309c63a395eefa83e6b35032992ea99
+  - maven@sha256:99e61abcff91a9b1333463bd8451fb18495d6eba9250ac66a338b518f8278320
+- Container build tools: Maven 3.9.16, Java 21.0.12.1 (Eclipse Adoptium).
+- Service B image ID used for the ablation runs: sha256:44603821a646c9add144892a04ba1854709221470729365890436d93f9bc4f90
+- Spring Boot 3.2.5 (both services). Lombok version set by the Spring Boot parent.
+
+## Ablation (added 2026-10-24)
+- Detector modes, set by TENANTGUARD_DETECTOR_MODE:
+  - VERIFIER: statement check, stale-leftover check, row check.
+  - STATEMENT_ONLY: statement check and stale-leftover check.
+  - ROW_ONLY: row check only.
+  - HEADER_ONLY: no operation checks.
+- Header checks (signature, missing context, header-body mismatch) run in all modes.
+- Runs: abl-{VERIFIER, STATEMENT_ONLY, ROW_ONLY, HEADER_ONLY}-s{1,2,3}. 100 messages per condition. Conditions: NONE, F1, F2, F3, F4.
+- Code commit containing the ablation: 19196b7135243702ae1ecc3780f7c22da53e2966
+- Results: abl-VERIFIER matches main-VERIFIER, and abl-HEADER_ONLY matches main-HEADER_ONLY, for all seeds under the CORRECTED rule.
+- Scoring: score_rules.ps1 writes scored_NAIVE.csv, scored_CORRECTED.csv, summary_NAIVE.csv, summary_CORRECTED.csv in each run folder. The legacy scored.csv files are unchanged in the abl folders.
+
+## F2 labeling correction (recorded 2026-10-24)
+- Original (NAIVE) rule: every F2 message expected positive.
+- Corrected rule: F2 expected positive only when the previous message on the same worker had a different tenant. The first message in each condition is expected negative.
+- The correction was made after the main runs had been scored. It was defined from the mechanism, not from detector output.
+- Files and the rule they reflect:
+  - main-* scored.csv: CORRECTED (overwritten on 2026-10-23; the NAIVE tables exist only in the scored_NAIVE.csv files produced by score_rules.ps1).
+  - pilot-* scored.csv: NAIVE. Not yet rescored with score_rules.ps1.
+  - abl-*, hdr-*, timing-*: both rules produced by score_rules.ps1 where run.
+- Run 20261023-053327 is INVALID (request IDs in the ledger did not match the system). Excluded from all comparisons. Data kept unchanged.
