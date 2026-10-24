@@ -1,0 +1,6 @@
+"rule","condition","n","TP","FN","FP","TN","unmatched"
+"NAIVE","NONE","100","0","0","0","100","0"
+"NAIVE","F1_MISSING_CONTEXT","100","100","0","0","0","0"
+"NAIVE","F2_STALE_REUSE","100","58","42","0","0","0"
+"NAIVE","F3_ASYNC_LOSS","100","100","0","0","0","0"
+"NAIVE","F4_MISSING_FILTER","100","0","100","0","0","0"

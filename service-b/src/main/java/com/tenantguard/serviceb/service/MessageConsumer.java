@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
@@ -22,7 +23,8 @@ public class MessageConsumer {
     private final ThreadPoolTaskExecutor consumerExecutor;
     private final FaultMode mode;
     private final String signingKey;
-    private final boolean operationChecks;
+    private final boolean statementChecks;
+    private final boolean rowChecks;
 
     public MessageConsumer(TenantRowStore store,
                            MetricsCollector metricsCollector,
@@ -30,12 +32,16 @@ public class MessageConsumer {
                            @Value("${tenantguard.fault.mode:NONE}") String mode,
                            @Value("${tenantguard.signing.key:dev-only-key}") String signingKey,
                            @Value("${tenantguard.detector.mode:VERIFIER}") String detectorMode) {
+        if (!Set.of("VERIFIER", "STATEMENT_ONLY", "ROW_ONLY", "HEADER_ONLY").contains(detectorMode)) {
+            throw new IllegalArgumentException("Unknown detector mode: " + detectorMode);
+        }
         this.store = store;
         this.metricsCollector = metricsCollector;
         this.consumerExecutor = consumerExecutor;
         this.mode = FaultMode.valueOf(mode);
         this.signingKey = signingKey;
-        this.operationChecks = !"HEADER_ONLY".equals(detectorMode);
+        this.statementChecks = detectorMode.equals("VERIFIER") || detectorMode.equals("STATEMENT_ONLY");
+        this.rowChecks = detectorMode.equals("VERIFIER") || detectorMode.equals("ROW_ONLY");
     }
 
     @RabbitListener(queues = RabbitMQConfig.QUEUE_NAME)
@@ -45,7 +51,8 @@ public class MessageConsumer {
                                      @Header(name = "X-Auth-Sig", required = false) String signature) {
         long start = System.nanoTime();
         String verifiedTenant = verifyTenant(headerTenant, request.getRequestId(), producedAt, signature);
-        MessageObservation obs = new MessageObservation(request.getRequestId(), verifiedTenant, operationChecks);
+        MessageObservation obs = new MessageObservation(request.getRequestId(), verifiedTenant,
+                statementChecks, rowChecks);
         if (verifiedTenant == null) {
             obs.record(headerTenant == null ? "MISSING_CONTEXT" : "INVALID_SIGNATURE");
         }
@@ -53,8 +60,8 @@ public class MessageConsumer {
             obs.record("HEADER_BODY_MISMATCH");
         }
 
-        log.info("Message received - RequestID: {}, Header Tenant: {}, Signature valid: {}, Mode: {}, Operation checks: {}",
-                request.getRequestId(), headerTenant, verifiedTenant != null, mode, operationChecks);
+        log.info("Message received - RequestID: {}, Header Tenant: {}, Signature valid: {}, Mode: {}, Statement checks: {}, Row checks: {}, Fault: {}",
+                request.getRequestId(), headerTenant, verifiedTenant != null, mode, statementChecks, rowChecks, mode);
 
         if (mode != FaultMode.F1_MISSING_CONTEXT) {
             TenantContext.set(verifiedTenant);
@@ -95,7 +102,7 @@ public class MessageConsumer {
     private void run(MessageObservation obs) {
         String verified = obs.verifiedTenant();
         String leftover = TenantContext.current();
-        if (obs.operationChecks() && leftover != null && !leftover.equals(verified)) {
+        if (obs.statementChecks() && leftover != null && !leftover.equals(verified)) {
             obs.record("STALE_LEFTOVER");
         }
 

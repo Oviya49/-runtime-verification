@@ -7,30 +7,34 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public final class MessageObservation {
     private final String requestId;
     private final String verifiedTenant;
-    private final boolean operationChecks;
+    private final boolean statementChecks;
+    private final boolean rowChecks;
     private final Queue<String> violations = new ConcurrentLinkedQueue<>();
 
-    public MessageObservation(String requestId, String verifiedTenant, boolean operationChecks) {
+    public MessageObservation(String requestId, String verifiedTenant,
+                              boolean statementChecks, boolean rowChecks) {
         this.requestId = requestId;
         this.verifiedTenant = verifiedTenant;
-        this.operationChecks = operationChecks;
+        this.statementChecks = statementChecks;
+        this.rowChecks = rowChecks;
     }
 
     public String requestId() { return requestId; }
     public String verifiedTenant() { return verifiedTenant; }
-    public boolean operationChecks() { return operationChecks; }
+    public boolean statementChecks() { return statementChecks; }
+    public boolean rowChecks() { return rowChecks; }
 
     public void record(String code) { violations.add(code); }
 
     public void checkStatement(String effectiveTenant) {
-        if (!operationChecks) return;
+        if (!statementChecks) return;
         if (verifiedTenant == null || !Objects.equals(effectiveTenant, verifiedTenant)) {
             violations.add("CONTEXT_MISMATCH");
         }
     }
 
     public void checkRow(String ownerTenant) {
-        if (!operationChecks) return;
+        if (!rowChecks) return;
         if (!Objects.equals(ownerTenant, verifiedTenant)) {
             violations.add("OWNER_MISMATCH");
         }
