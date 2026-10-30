@@ -2,3 +2,15 @@
 *.class
 .idea/
 *.iml
+.env
+.env.*
+!.env.example
+application-local.properties
+application-secret.properties
+*.pem
+*.key
+*.log
+logs/
+
+# Exclude invalid experiment run
+experiments/runs/20261023-053327/

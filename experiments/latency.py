@@ -9,9 +9,12 @@ os.makedirs(OUT, exist_ok=True)
 rng = np.random.default_rng(20261023)
 B = 2000
 
+
+
 rows = []
 for det in ["VERIFIER", "HEADER_ONLY"]:
-    files = glob.glob(os.path.join(BASE, f"timing-{det}-s*", "observed_*.csv"))
+   
+    files = glob.glob(os.path.join(BASE, f"timing-{det}-s*", "observed_NONE.csv"))
     t = pd.concat([pd.read_csv(f) for f in files])["detectionTimeMs"].astype(float).values
     row = {"detector": det, "n": len(t)}
     for q in [50, 95, 99]:
@@ -21,5 +24,5 @@ for det in ["VERIFIER", "HEADER_ONLY"]:
     rows.append(row)
 
 res = pd.DataFrame(rows)
-res.to_csv(os.path.join(OUT, "latency.csv"), index=False)
+res.to_csv(os.path.join(OUT, "latency_NONE.csv"), index=False)
 print(res.to_string(index=False))
